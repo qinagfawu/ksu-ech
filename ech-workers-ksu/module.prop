@@ -1,0 +1,8 @@
+id=ech-workers-ksu
+name=ECH Workers KSU Module
+author=KSU Build
+version=1.0.0
+versionCode=1
+description=ECH Workers proxy client for Android with KSU support
+arch=arm64
+minsdk=21

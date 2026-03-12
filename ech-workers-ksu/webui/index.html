@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECH Workers 控制中心</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #4CAF50;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        
+        .section h2 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #555;
+        }
+        
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button.start {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        button.stop {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        button.restart {
+            background-color: #ff9800;
+            color: white;
+        }
+        
+        button:hover {
+            opacity: 0.8;
+        }
+        
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .status.running {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        
+        .status.stopped {
+            background-color: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        
+        .log {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        
+        .error {
+            color: #f44336;
+        }
+        
+        .success {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ECH Workers 控制中心</h1>
+        
+        <div class="section">
+            <h2>服务状态</h2>
+            <div id="status" class="status stopped">
+                服务未运行
+            </div>
+            <div class="button-group">
+                <button class="start" onclick="startService()">启动服务</button>
+                <button class="stop" onclick="stopService()">停止服务</button>
+                <button class="restart" onclick="restartService()">重启服务</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>服务配置</h2>
+            <div class="form-group">
+                <label for="serverAddr">服务端地址</label>
+                <input type="text" id="serverAddr" placeholder="your-worker.workers.dev:443">
+            </div>
+            <div class="form-group">
+                <label for="listenAddr">监听地址</label>
+                <input type="text" id="listenAddr" value="0.0.0.0:30000">
+            </div>
+            <div class="form-group">
+                <label for="token">身份令牌</label>
+                <input type="text" id="token" placeholder="可选">
+            </div>
+            <div class="form-group">
+                <label for="routingMode">分流模式</label>
+                <select id="routingMode">
+                    <option value="global">全局代理</option>
+                    <option value="bypass_cn">跳过中国大陆</option>
+                    <option value="none">直连模式</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button class="start" onclick="saveConfig()">保存配置</button>
+                <button class="start" onclick="loadConfig()">加载配置</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>运行日志</h2>
+            <div id="log" class="log">
+                <div class="log-entry">日志将显示在这里</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 检查服务状态
+        function checkStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusElement = document.getElementById('status');
+                    if (data.running) {
+                        statusElement.className = 'status running';
+                        statusElement.textContent = '服务运行中';
+                    } else {
+                        statusElement.className = 'status stopped';
+                        statusElement.textContent = '服务未运行';
+                    }
+                })
+                .catch(error => {
+                    console.error('检查状态失败:', error);
+                    const statusElement = document.getElementById('status');
+                    statusElement.className = 'status stopped';
+                    statusElement.textContent = '服务未运行';
+                });
+        }
+        
+        // 启动服务
+        function startService() {
+            const serverAddr = document.getElementById('serverAddr').value;
+            const listenAddr = document.getElementById('listenAddr').value;
+            const token = document.getElementById('token').value;
+            const routingMode = document.getElementById('routingMode').value;
+            
+            fetch('/api/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    serverAddr: serverAddr,
+                    listenAddr: listenAddr,
+                    token: token,
+                    routingMode: routingMode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry('服务启动成功', 'success');
+                    checkStatus();
+                } else {
+                    addLogEntry('服务启动失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                addLogEntry('请求失败: ' + error, 'error');
+            });
+        }
+        
+        // 停止服务
+        function stopService() {
+            fetch('/api/stop', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry('服务停止成功', 'success');
+                    checkStatus();
+                } else {
+                    addLogEntry('服务停止失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                addLogEntry('请求失败: ' + error, 'error');
+            });
+        }
+        
+        // 重启服务
+        function restartService() {
+            stopService();
+            setTimeout(startService, 1000);
+        }
+        
+        // 保存配置
+        function saveConfig() {
+            const serverAddr = document.getElementById('serverAddr').value;
+            const listenAddr = document.getElementById('listenAddr').value;
+            const token = document.getElementById('token').value;
+            const routingMode = document.getElementById('routingMode').value;
+            
+            fetch('/api/save-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    serverAddr: serverAddr,
+                    listenAddr: listenAddr,
+                    token: token,
+                    routingMode: routingMode
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry('配置保存成功', 'success');
+                } else {
+                    addLogEntry('配置保存失败: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                addLogEntry('请求失败: ' + error, 'error');
+            });
+        }
+        
+        // 加载配置
+        function loadConfig() {
+            fetch('/api/load-config')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('serverAddr').value = data.config.serverAddr || '';
+                        document.getElementById('listenAddr').value = data.config.listenAddr || '0.0.0.0:30000';
+                        document.getElementById('token').value = data.config.token || '';
+                        document.getElementById('routingMode').value = data.config.routingMode || 'bypass_cn';
+                        addLogEntry('配置加载成功', 'success');
+                    } else {
+                        addLogEntry('配置加载失败: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    addLogEntry('请求失败: ' + error, 'error');
+                });
+        }
+        
+        // 添加日志条目
+        function addLogEntry(message, type) {
+            const logElement = document.getElementById('log');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry ' + type;
+            logEntry.textContent = new Date().toLocaleString() + ' - ' + message;
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        // 初始化
+        function init() {
+            checkStatus();
+            loadConfig();
+            // 每5秒检查一次状态
+            setInterval(checkStatus, 5000);
+        }
+        
+        // 页面加载完成后初始化
+        window.onload = init;
+    </script>
+</body>
+</html>
