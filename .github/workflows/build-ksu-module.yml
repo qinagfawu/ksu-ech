@@ -12,6 +12,11 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for release'
+        required: true
+        default: 'v1.0.0'
 
 jobs:
   build:
@@ -113,7 +118,8 @@ jobs:
             artifacts/**/*.zip
           draft: false
           prerelease: false
-          name: ECH Workers KSU Module ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          name: ECH Workers KSU Module ${{ github.event.inputs.tag_name || github.ref_name }}
           body: |
             ## ECH Workers KSU Module
             
