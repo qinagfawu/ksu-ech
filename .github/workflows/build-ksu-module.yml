@@ -90,6 +90,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
     
     steps:
       - name: Download all artifacts
@@ -104,11 +106,14 @@ jobs:
           ls -la artifacts/**
           find artifacts -name "*.zip" -type f
 
-      - name: Create release
-        uses: actions/create-release@v1
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ECH Workers KSU Module ${{ github.ref_name }}
+          files: |
+            artifacts/**/*.zip
+          draft: false
+          prerelease: false
+          name: ECH Workers KSU Module ${{ github.ref_name }}
           body: |
             ## ECH Workers KSU Module
             
@@ -127,19 +132,3 @@ jobs:
             3. 重启设备
             4. 访问 http://localhost:8080 打开 WebUI 控制中心
             5. 配置服务端地址和其他参数，然后启动服务
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release assets
-        run: |
-          # 上传所有 zip 文件到 release
-          for file in artifacts/**/*.zip; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file to release..."
-              gh release upload ${{ github.ref_name }} "$file" --clobber
-            fi
-          done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
