@@ -91,12 +91,15 @@ jobs:
           path: ECHWorkers-ksu-module-arm64.zip
           retention-days: 30
 
+  # 简化的 release 步骤，只在手动触发时运行
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
+      packages: write
+      actions: write
     
     steps:
       - name: Download all artifacts
@@ -111,30 +114,24 @@ jobs:
           ls -la artifacts/**
           find artifacts -name "*.zip" -type f
 
-      - name: Create release and upload assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/**/*.zip
-          draft: false
-          prerelease: false
-          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
-          name: ECH Workers KSU Module ${{ github.event.inputs.tag_name || github.ref_name }}
-          body: |
-            ## ECH Workers KSU Module
-            
-            ### 功能特性
-            - ECH 加密技术，保护 SNI 信息
-            - 多协议支持（SOCKS5 和 HTTP CONNECT）
-            - 智能分流（全局代理、跳过中国大陆、直连模式）
-            - IPv4/IPv6 双栈支持
-            - 内置 WebUI 控制中心
-            - 自动下载和更新中国 IP 列表
-            - 服务自动启动和管理
-            
-            ### 安装方法
-            1. 下载模块 zip 文件
-            2. 在 KernelSU 应用中导入模块
-            3. 重启设备
-            4. 访问 http://localhost:8080 打开 WebUI 控制中心
-            5. 配置服务端地址和其他参数，然后启动服务
+      - name: Create release
+        run: |
+          # 确保标签存在
+          if ! git tag -l "${{ github.event.inputs.tag_name }}"; then
+            git tag "${{ github.event.inputs.tag_name }}"
+            git push origin "${{ github.event.inputs.tag_name }}"
+          fi
+          
+          # 上传构建产物
+          for file in artifacts/**/*.zip; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file to release..."
+              # 使用 GitHub API 上传文件
+              FILE_PATH="$file"
+              FILE_NAME="$(basename "$file")"
+              RELEASE_URL="https://uploads.github.com/repos/${{ github.repository }}/releases/$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.inputs.tag_name }}" | jq -r '.id')/assets?name=$FILE_NAME"
+              curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/zip" --data-binary "@$FILE_PATH" "$RELEASE_URL"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
