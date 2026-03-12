@@ -91,15 +91,11 @@ jobs:
           path: ECHWorkers-ksu-module-arm64.zip
           retention-days: 30
 
-  # 简化的 release 步骤，只在手动触发时运行
-  release:
+  # 简化的构建步骤，只上传 artifacts
+  build-only:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: write
-      packages: write
-      actions: write
     
     steps:
       - name: Download all artifacts
@@ -114,24 +110,9 @@ jobs:
           ls -la artifacts/**
           find artifacts -name "*.zip" -type f
 
-      - name: Create release
-        run: |
-          # 确保标签存在
-          if ! git tag -l "${{ github.event.inputs.tag_name }}"; then
-            git tag "${{ github.event.inputs.tag_name }}"
-            git push origin "${{ github.event.inputs.tag_name }}"
-          fi
-          
-          # 上传构建产物
-          for file in artifacts/**/*.zip; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file to release..."
-              # 使用 GitHub API 上传文件
-              FILE_PATH="$file"
-              FILE_NAME="$(basename "$file")"
-              RELEASE_URL="https://uploads.github.com/repos/${{ github.repository }}/releases/$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.event.inputs.tag_name }}" | jq -r '.id')/assets?name=$FILE_NAME"
-              curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/zip" --data-binary "@$FILE_PATH" "$RELEASE_URL"
-            fi
-          done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload artifacts to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECHWorkers-ksu-module-arm64
+          path: artifacts/**/*.zip
+          retention-days: 30
