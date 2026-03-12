@@ -92,9 +92,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -108,12 +105,41 @@ jobs:
           find artifacts -name "*.zip" -type f
 
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: actions/create-release@v1
         with:
-          files: |
-            artifacts/**/*.zip
+          tag_name: ${{ github.ref_name }}
+          release_name: ECH Workers KSU Module ${{ github.ref_name }}
+          body: |
+            ## ECH Workers KSU Module
+            
+            ### 功能特性
+            - ECH 加密技术，保护 SNI 信息
+            - 多协议支持（SOCKS5 和 HTTP CONNECT）
+            - 智能分流（全局代理、跳过中国大陆、直连模式）
+            - IPv4/IPv6 双栈支持
+            - 内置 WebUI 控制中心
+            - 自动下载和更新中国 IP 列表
+            - 服务自动启动和管理
+            
+            ### 安装方法
+            1. 下载模块 zip 文件
+            2. 在 KernelSU 应用中导入模块
+            3. 重启设备
+            4. 访问 http://localhost:8080 打开 WebUI 控制中心
+            5. 配置服务端地址和其他参数，然后启动服务
           draft: false
           prerelease: false
-          tag_name: ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets
+        run: |
+          # 上传所有 zip 文件到 release
+          for file in artifacts/**/*.zip; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file to release..."
+              gh release upload ${{ github.ref_name }} "$file" --clobber
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
