@@ -97,11 +97,17 @@ jobs:
         with:
           path: artifacts
 
+      - name: List downloaded artifacts
+        run: |
+          ls -la
+          ls -la artifacts
+          ls -la artifacts/**
+
       - name: Create release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/**/*.zip
+            ECHWorkers-ksu-module-arm64.zip
           draft: false
           prerelease: false
         env:
