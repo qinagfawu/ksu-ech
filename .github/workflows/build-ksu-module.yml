@@ -27,27 +27,22 @@ jobs:
           go-version: '1.23'
           cache: false
 
-      - name: Initialize Go module
+      - name: Initialize Go module and build executable
         run: |
-          go mod init ech-workers || true
-          go mod tidy
-
-      - name: Build Android ARM64 executable
-        env:
-          GOOS: android
-          GOARCH: arm64
-          CGO_ENABLED: 0
-        run: |
+          cd ech-wk
           echo "Building Android ARM64 executable..."
           ls -la
+          go mod init ech-workers || true
+          go mod tidy
           if [ -f "ech-workers.go" ]; then
-            go build -trimpath -ldflags="-s -w" -o ech-workers ech-workers.go
+            GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ech-workers ech-workers.go
           elif [ -f "main.go" ]; then
-            go build -trimpath -ldflags="-s -w" -o ech-workers main.go
+            GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ech-workers main.go
           else
             echo "Error: No Go files found!"
             exit 1
           fi
+          ls -la
 
       - name: Create KSU module directory structure
         run: |
@@ -56,16 +51,16 @@ jobs:
       - name: Copy files to KSU module
         run: |
           # Copy executable
-          cp ech-workers ksu-module/system/bin/
+          cp ech-wk/ech-workers ksu-module/system/bin/
           chmod 755 ksu-module/system/bin/ech-workers
           
           # Copy module files
-          cp -r ../ech-workers-ksu/module.prop ksu-module/
-          cp -r ../ech-workers-ksu/install.sh ksu-module/
-          cp -r ../ech-workers-ksu/uninstall.sh ksu-module/
-          cp -r ../ech-workers-ksu/upgrade.sh ksu-module/
-          cp -r ../ech-workers-ksu/webui-server.sh ksu-module/
-          cp -r ../ech-workers-ksu/webui/* ksu-module/webui/
+          cp -r ech-workers-ksu/module.prop ksu-module/
+          cp -r ech-workers-ksu/install.sh ksu-module/
+          cp -r ech-workers-ksu/uninstall.sh ksu-module/
+          cp -r ech-workers-ksu/upgrade.sh ksu-module/
+          cp -r ech-workers-ksu/webui-server.sh ksu-module/
+          cp -r ech-workers-ksu/webui/* ksu-module/webui/
           
           # Set execute permissions
           chmod 755 ksu-module/install.sh
