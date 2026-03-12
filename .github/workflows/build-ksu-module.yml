@@ -39,7 +39,15 @@ jobs:
           CGO_ENABLED: 0
         run: |
           echo "Building Android ARM64 executable..."
-          go build -trimpath -ldflags="-s -w" -o ech-workers .
+          ls -la
+          if [ -f "ech-workers.go" ]; then
+            go build -trimpath -ldflags="-s -w" -o ech-workers ech-workers.go
+          elif [ -f "main.go" ]; then
+            go build -trimpath -ldflags="-s -w" -o ech-workers main.go
+          else
+            echo "Error: No Go files found!"
+            exit 1
+          fi
 
       - name: Create KSU module directory structure
         run: |
