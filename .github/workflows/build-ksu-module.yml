@@ -1,0 +1,105 @@
+name: Build KSU Module
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Initialize Go module
+        run: |
+          go mod init ech-workers || true
+          go mod tidy
+
+      - name: Build Android ARM64 executable
+        env:
+          GOOS: android
+          GOARCH: arm64
+          CGO_ENABLED: 0
+        run: |
+          echo "Building Android ARM64 executable..."
+          go build -trimpath -ldflags="-s -w" -o ech-workers ech-workers.go
+
+      - name: Create KSU module directory structure
+        run: |
+          mkdir -p ksu-module/system/bin ksu-module/webui
+
+      - name: Copy files to KSU module
+        run: |
+          # Copy executable
+          cp ech-workers ksu-module/system/bin/
+          chmod 755 ksu-module/system/bin/ech-workers
+          
+          # Copy module files
+          cp -r ../ech-workers-ksu/module.prop ksu-module/
+          cp -r ../ech-workers-ksu/install.sh ksu-module/
+          cp -r ../ech-workers-ksu/uninstall.sh ksu-module/
+          cp -r ../ech-workers-ksu/upgrade.sh ksu-module/
+          cp -r ../ech-workers-ksu/webui-server.sh ksu-module/
+          cp -r ../ech-workers-ksu/webui/* ksu-module/webui/
+          
+          # Set execute permissions
+          chmod 755 ksu-module/install.sh
+          chmod 755 ksu-module/uninstall.sh
+          chmod 755 ksu-module/upgrade.sh
+          chmod 755 ksu-module/webui-server.sh
+
+      - name: Download China IP list
+        run: |
+          echo "Downloading latest China IP list (IPv4 and IPv6)..."
+          curl -L -o ksu-module/system/bin/chn_ip.txt "https://raw.githubusercontent.com/mayaxcn/china-ip-list/refs/heads/master/chn_ip.txt" || echo "Failed to download IPv4 list, will skip"
+          curl -L -o ksu-module/system/bin/chn_ip_v6.txt "https://raw.githubusercontent.com/mayaxcn/china-ip-list/refs/heads/master/chn_ip_v6.txt" || echo "Failed to download IPv6 list, will skip"
+
+      - name: Create KSU module zip
+        run: |
+          cd ksu-module
+          zip -r ../ECHWorkers-ksu-module-arm64.zip .
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECHWorkers-ksu-module-arm64
+          path: ECHWorkers-ksu-module-arm64.zip
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/**/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
